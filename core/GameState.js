@@ -12,5 +12,7 @@ export class GameState {
     this.projectiles = [];
     this.effects = [];
     this.player = null;
+    this.dungeon = null;
+    this.dungeonReady = false;
   }
 }
