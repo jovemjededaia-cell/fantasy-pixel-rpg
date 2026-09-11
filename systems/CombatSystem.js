@@ -2,11 +2,16 @@ import { Projectile } from '../entities/Projectile.js';
 import { CollisionSystem } from './CollisionSystem.js';
 
 export class CombatSystem {
-  constructor(state) { this.state = state; }
+  constructor(state, dungeonCollision = null) {
+    this.state = state;
+    this.dungeonCollision = dungeonCollision;
+  }
 
   update(dt) {
     const { player, enemies, projectiles } = this.state;
-    for (const enemy of enemies) enemy.update(dt, player);
+    for (const enemy of enemies) {
+      enemy.update(dt, player, this.dungeonCollision);
+    }
 
     if (player.canAttack() && this.state.input.attackPressed()) {
       const target = this.findNearestTarget();
@@ -32,7 +37,10 @@ export class CombatSystem {
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const d = CollisionSystem.distance(player, enemy);
-      if (d <= player.attackRange && d < best) { best = d; nearest = enemy; }
+      if (d <= player.attackRange && d < best) {
+        best = d;
+        nearest = enemy;
+      }
     }
     return nearest;
   }
