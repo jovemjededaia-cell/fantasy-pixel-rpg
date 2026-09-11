@@ -3,11 +3,12 @@ import { CollisionSystem } from './CollisionSystem.js';
 import { EnemyAISystem } from './EnemyAISystem.js';
 
 export class CombatSystem {
-  constructor(state, dungeonCollision = null, progression = null, inventory = null) {
+  constructor(state, dungeonCollision = null, progression = null, inventory = null, effects = null) {
     this.state = state;
     this.dungeonCollision = dungeonCollision;
     this.progression = progression;
     this.inventory = inventory;
+    this.effects = effects;
     this.enemyAI = new EnemyAISystem();
   }
 
@@ -26,16 +27,25 @@ export class CombatSystem {
     const { player, enemies, projectiles } = this.state;
     this.updateEffects(dt);
 
-    for (const enemy of enemies) {
-      enemy.update(dt, player, this.dungeonCollision, this.enemyAI);
-    }
+    for (const enemy of enemies) enemy.update(dt, player, this.dungeonCollision, this.enemyAI);
     if (this.state.boss) this.state.boss.update(dt, player, this.dungeonCollision);
 
     if (player.canAttack() && this.state.input.attackPressed()) {
       const target = this.findNearestTarget();
       if (target) {
         player.startAttack();
-        projectiles.push(new Projectile(player.x, player.y, target, player.damage, this.dungeonCollision));
+        this.effects?.spawn('attack', player.x, player.y, { targetX: target.x, targetY: target.y, life: 0.16 });
+        projectiles.push(new Projectile(
+          player.x, player.y, target, player.damage, this.dungeonCollision,
+          (hitTarget, result, x, y) => {
+            this.effects?.spawn(result?.critical ? 'critical' : 'hit', x, y, {
+              life: result?.critical ? 0.45 : 0.28,
+              damage: result?.damage ?? player.damage,
+              critical: !!result?.critical
+            });
+            this.effects?.spawn('spark', hitTarget?.x ?? x, hitTarget?.y ?? y, { life: 0.22 });
+          }
+        ));
       }
     }
 
@@ -57,6 +67,7 @@ export class CombatSystem {
       this.state.score += 10;
       this.progression?.grantXp(boss.xp);
       this.inventory?.add(boss.reward);
+      this.effects?.spawn('bossDefeat', boss.x, boss.y, { life: 0.8 });
     }
   }
 
