@@ -22,26 +22,34 @@ export class Enemy {
     this.hitstun = 0;
     this.knockbackX = 0;
     this.knockbackY = 0;
+    this.moving = false;
   }
 
   update(dt, player, collision = null, aiSystem = null) {
     this.hitstun = Math.max(0, this.hitstun - dt);
     this.attackTimer = Math.max(0, this.attackTimer - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.moving = false;
 
     if (this.hitstun > 0) {
       if (collision) collision.moveCircle(this, this.knockbackX * dt, this.knockbackY * dt);
       return;
     }
 
+    const oldX = this.x, oldY = this.y;
     const shouldAttack = aiSystem
       ? aiSystem.update(this, player, dt, collision)
       : this.defaultChase(dt, player, collision);
+    this.moving = Math.hypot(this.x - oldX, this.y - oldY) > 0.01;
 
     if (shouldAttack && this.attackTimer <= 0) {
       player.takeDamage(this.damage);
       this.attackTimer = this.attackCooldown;
     }
+  }
+
+  animationFrame(fps = 7, framesPerDirection = 4) {
+    return Math.floor(this.aiTime * fps) % framesPerDirection;
   }
 
   defaultChase(dt, player, collision) {
@@ -56,17 +64,11 @@ export class Enemy {
     return distance <= this.radius + player.radius + 4;
   }
 
-  animationFrame(fps = 7, framesPerDirection = 4) {
-    const local = Math.floor(this.aiTime * fps) % framesPerDirection;
-    return local;
-  }
-
   takeCombatDamage(amount, hitX = this.x, hitY = this.y) {
     const critical = Math.random() < COMBAT_CONFIG.player.baseCritChance;
     const finalDamage = critical
       ? Math.max(1, Math.round(amount * COMBAT_CONFIG.player.critMultiplier))
       : Math.max(1, Math.round(amount));
-
     this.hp = Math.max(0, this.hp - finalDamage);
     this.hitFlash = 0.1;
     this.hitstun = COMBAT_CONFIG.hitstun;
