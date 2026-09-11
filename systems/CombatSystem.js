@@ -2,16 +2,17 @@ import { Projectile } from '../entities/Projectile.js';
 import { CollisionSystem } from './CollisionSystem.js';
 
 export class CombatSystem {
-  constructor(state, dungeonCollision = null) {
+  constructor(state, dungeonCollision = null, progression = null, inventory = null) {
     this.state = state;
     this.dungeonCollision = dungeonCollision;
+    this.progression = progression;
+    this.inventory = inventory;
   }
 
   update(dt) {
     const { player, enemies, projectiles } = this.state;
-    for (const enemy of enemies) {
-      enemy.update(dt, player, this.dungeonCollision);
-    }
+    for (const enemy of enemies) enemy.update(dt, player, this.dungeonCollision);
+    if (this.state.boss) this.state.boss.update(dt, player, this.dungeonCollision);
 
     if (player.canAttack() && this.state.input.attackPressed()) {
       const target = this.findNearestTarget();
@@ -24,23 +25,35 @@ export class CombatSystem {
     for (const projectile of projectiles) projectile.update(dt);
     this.state.projectiles = projectiles.filter(p => !p.dead);
 
-    const defeated = enemies.filter(enemy => enemy.hp <= 0).length;
-    if (defeated) {
-      this.state.score += defeated;
-      this.state.enemies = enemies.filter(enemy => enemy.hp > 0);
+    for (const enemy of enemies) {
+      if (enemy.hp <= 0) {
+        this.state.score += 1;
+        this.progression?.grantXp(enemy.xp);
+        if (enemy.typeId === 'guardian' || Math.random() < 0.12) this.inventory?.add('smallPotion');
+      }
+    }
+    this.state.enemies = enemies.filter(enemy => enemy.hp > 0);
+
+    const boss = this.state.boss;
+    if (boss && boss.hp <= 0 && !this.state.bossDefeated) {
+      this.state.bossDefeated = true;
+      this.state.score += 10;
+      this.progression?.grantXp(boss.xp);
+      this.inventory?.add(boss.reward);
     }
   }
 
   findNearestTarget() {
-    const { player, enemies } = this.state;
+    const { player, enemies, boss } = this.state;
     let nearest = null, best = Infinity;
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const d = CollisionSystem.distance(player, enemy);
-      if (d <= player.attackRange && d < best) {
-        best = d;
-        nearest = enemy;
-      }
+      if (d <= player.attackRange && d < best) { best = d; nearest = enemy; }
+    }
+    if (boss && boss.hp > 0) {
+      const d = CollisionSystem.distance(player, boss);
+      if (d <= player.attackRange && d < best) nearest = boss;
     }
     return nearest;
   }
