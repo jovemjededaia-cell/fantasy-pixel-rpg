@@ -10,10 +10,7 @@ export class WFC {
 
   reset() {
     const all = this.tiles.map((_, index) => index);
-    this.cells = Array.from({ length: this.width * this.height }, () => ({
-      options: [...all],
-      tile: -1
-    }));
+    this.cells = Array.from({ length: this.width * this.height }, () => ({ options: [...all], tile: -1 }));
     this.collapsed = 0;
     this.contradiction = false;
     this.finished = false;
@@ -29,12 +26,11 @@ export class WFC {
 
   observe() {
     let best = -1;
-    let entropy = Infinity;
-
+    let bestEntropy = Infinity;
     for (let i = 0; i < this.cells.length; i++) {
       const value = this.entropy(this.cells[i]);
-      if (value < entropy) {
-        entropy = value;
+      if (value < bestEntropy) {
+        bestEntropy = value;
         best = i;
       }
     }
@@ -45,11 +41,11 @@ export class WFC {
     }
 
     const cell = this.cells[best];
+    if (!cell.options.length) return this.fail();
     const tile = this.weightedChoice(cell.options);
     cell.tile = tile;
     cell.options = [tile];
     this.collapsed++;
-
     return this.propagate(best);
   }
 
@@ -79,24 +75,23 @@ export class WFC {
 
         const neighborIndex = this.index(nx, ny);
         const neighbor = this.cells[neighborIndex];
-        if (neighbor.tile >= 0) continue;
-
         const before = neighbor.options.length;
-        neighbor.options = neighbor.options.filter(candidate =>
+        const allowed = neighbor.options.filter(candidate =>
           this.cells[current].options.some(source => tilesMatch(source, candidate, direction))
         );
 
-        if (neighbor.options.length === 0) {
-          this.contradiction = true;
-          return false;
-        }
+        if (allowed.length === 0) return this.fail();
+        if (allowed.length === before) continue;
 
-        if (neighbor.options.length === 1) {
-          neighbor.tile = neighbor.options[0];
+        neighbor.options = allowed;
+        if (neighbor.tile >= 0) {
+          if (allowed.length !== 1 || allowed[0] !== neighbor.tile) return this.fail();
+        } else if (allowed.length === 1) {
+          neighbor.tile = allowed[0];
           this.collapsed++;
         }
 
-        if (neighbor.options.length < before && !queued.has(neighborIndex)) {
+        if (!queued.has(neighborIndex)) {
           queue.push(neighborIndex);
           queued.add(neighborIndex);
         }
@@ -105,6 +100,11 @@ export class WFC {
 
     if (this.collapsed >= this.cells.length) this.finished = true;
     return true;
+  }
+
+  fail() {
+    this.contradiction = true;
+    return false;
   }
 
   step() {
@@ -119,15 +119,8 @@ export class WFC {
   }
 
   status() {
-    return {
-      collapsed: this.collapsed,
-      total: this.cells.length,
-      finished: this.finished,
-      contradiction: this.contradiction
-    };
+    return { collapsed: this.collapsed, total: this.cells.length, finished: this.finished, contradiction: this.contradiction };
   }
 
-  toTileMap() {
-    return this.cells.map(cell => cell.tile >= 0 ? cell.tile : 0);
-  }
+  toTileMap() { return this.cells.map(cell => cell.tile >= 0 ? cell.tile : 0); }
 }
