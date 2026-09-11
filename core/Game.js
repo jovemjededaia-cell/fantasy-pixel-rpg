@@ -6,6 +6,7 @@ import { Player } from '../entities/Player.js';
 import { Enemy } from '../entities/Enemy.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
 import { DungeonSystem } from '../systems/DungeonSystem.js';
+import { DungeonCollisionSystem } from '../systems/DungeonCollisionSystem.js';
 
 export class Game {
   constructor(canvas) {
@@ -15,6 +16,7 @@ export class Game {
     this.renderer = new Renderer(canvas);
     this.state.input = this.input;
     this.dungeon = new DungeonSystem(this.state, this.renderer);
+    this.dungeonCollision = new DungeonCollisionSystem(this.dungeon);
     this.combat = new CombatSystem(this.state);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
 
@@ -35,25 +37,20 @@ export class Game {
     this.dungeon.generate(columns, rows);
     this.state.dungeonReady = true;
 
-    this.state.player = new Player(this.canvas.width / 2, this.canvas.height / 2);
+    const spawn = this.dungeon.findWalkableSpawn();
+    this.state.player = new Player(spawn.x, spawn.y);
     this.spawnEnemy();
   }
 
   spawnEnemy() {
-    const edge = Math.floor(Math.random() * 4);
-    const margin = 30;
-    let x, y;
-    if (edge === 0) { x = margin; y = Math.random() * this.canvas.height; }
-    else if (edge === 1) { x = this.canvas.width - margin; y = Math.random() * this.canvas.height; }
-    else if (edge === 2) { x = Math.random() * this.canvas.width; y = margin; }
-    else { x = Math.random() * this.canvas.width; y = this.canvas.height - margin; }
-    this.state.enemies.push(new Enemy(x, y, this.state.wave));
+    const spawn = this.dungeon.findWalkableSpawn(this.state.player);
+    this.state.enemies.push(new Enemy(spawn.x, spawn.y, this.state.wave));
   }
 
   update(dt) {
     if (!this.state.running) return;
     this.state.time += dt;
-    this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height);
+    this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height, this.dungeonCollision);
     this.combat.update(dt);
 
     this.state.spawnTimer -= dt;
