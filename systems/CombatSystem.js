@@ -1,5 +1,6 @@
 import { Projectile } from '../entities/Projectile.js';
 import { CollisionSystem } from './CollisionSystem.js';
+import { EnemyAISystem } from './EnemyAISystem.js';
 
 export class CombatSystem {
   constructor(state, dungeonCollision = null, progression = null, inventory = null) {
@@ -7,11 +8,14 @@ export class CombatSystem {
     this.dungeonCollision = dungeonCollision;
     this.progression = progression;
     this.inventory = inventory;
+    this.enemyAI = new EnemyAISystem();
   }
 
   update(dt) {
     const { player, enemies, projectiles } = this.state;
-    for (const enemy of enemies) enemy.update(dt, player, this.dungeonCollision);
+    for (const enemy of enemies) {
+      enemy.update(dt, player, this.dungeonCollision, this.enemyAI);
+    }
     if (this.state.boss) this.state.boss.update(dt, player, this.dungeonCollision);
 
     if (player.canAttack() && this.state.input.attackPressed()) {
@@ -45,16 +49,23 @@ export class CombatSystem {
 
   findNearestTarget() {
     const { player, enemies, boss } = this.state;
-    let nearest = null, best = Infinity;
+    let nearest = null;
+    let best = Infinity;
+
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const d = CollisionSystem.distance(player, enemy);
-      if (d <= player.attackRange && d < best) { best = d; nearest = enemy; }
+      if (d <= player.attackRange && d < best) {
+        best = d;
+        nearest = enemy;
+      }
     }
+
     if (boss && boss.hp > 0) {
       const d = CollisionSystem.distance(player, boss);
       if (d <= player.attackRange && d < best) nearest = boss;
     }
+
     return nearest;
   }
 }
