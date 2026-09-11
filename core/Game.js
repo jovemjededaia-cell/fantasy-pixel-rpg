@@ -19,7 +19,7 @@ export class Game {
     this.dungeon = new DungeonSystem(this.state, this.renderer);
     this.dungeonCollision = new DungeonCollisionSystem(this.dungeon);
     this.terrain = new TerrainSystem(this.dungeon);
-    this.combat = new CombatSystem(this.state);
+    this.combat = new CombatSystem(this.state, this.dungeonCollision);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
 
     window.addEventListener('keydown', e => {
