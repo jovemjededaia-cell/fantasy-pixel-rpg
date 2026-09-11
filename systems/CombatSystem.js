@@ -11,8 +11,21 @@ export class CombatSystem {
     this.enemyAI = new EnemyAISystem();
   }
 
+  pushCombatEffect(effect) {
+    this.state.combatEffects ??= [];
+    this.state.combatEffects.push({ ...effect, time: 0, duration: effect.duration ?? 0.35 });
+  }
+
+  updateEffects(dt) {
+    if (!this.state.combatEffects) return;
+    for (const effect of this.state.combatEffects) effect.time += dt;
+    this.state.combatEffects = this.state.combatEffects.filter(effect => effect.time < effect.duration);
+  }
+
   update(dt) {
     const { player, enemies, projectiles } = this.state;
+    this.updateEffects(dt);
+
     for (const enemy of enemies) {
       enemy.update(dt, player, this.dungeonCollision, this.enemyAI);
     }
@@ -22,7 +35,7 @@ export class CombatSystem {
       const target = this.findNearestTarget();
       if (target) {
         player.startAttack();
-        projectiles.push(new Projectile(player.x, player.y, target, player.damage));
+        projectiles.push(new Projectile(player.x, player.y, target, player.damage, this.dungeonCollision));
       }
     }
 
@@ -51,7 +64,6 @@ export class CombatSystem {
     const { player, enemies, boss } = this.state;
     let nearest = null;
     let best = Infinity;
-
     for (const enemy of enemies) {
       if (enemy.hp <= 0) continue;
       const d = CollisionSystem.distance(player, enemy);
@@ -60,12 +72,10 @@ export class CombatSystem {
         nearest = enemy;
       }
     }
-
     if (boss && boss.hp > 0) {
       const d = CollisionSystem.distance(player, boss);
       if (d <= player.attackRange && d < best) nearest = boss;
     }
-
     return nearest;
   }
 }
