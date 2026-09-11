@@ -11,6 +11,7 @@ import { DungeonCollisionSystem } from '../systems/DungeonCollisionSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { ProgressionSystem } from '../systems/ProgressionSystem.js';
+import { InventoryUI } from '../ui/InventoryUI.js';
 
 export class Game {
   constructor(canvas) {
@@ -25,6 +26,7 @@ export class Game {
     this.inventory = new InventorySystem(this.state);
     this.progression = new ProgressionSystem(this.state);
     this.combat = new CombatSystem(this.state, this.dungeonCollision, this.progression, this.inventory);
+    this.inventoryUI = new InventoryUI(this);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
     window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r' && this.state.gameOver) this.reset(); });
   }
@@ -35,6 +37,7 @@ export class Game {
     this.state.reset();
     this.state.input = this.input;
     this.inventory.reset();
+    this.inventoryUI.toggle(false);
     this.state.running = true;
     const columns = Math.floor(this.canvas.width / this.dungeon.tileSize);
     const rows = Math.floor(this.canvas.height / this.dungeon.tileSize);
@@ -73,14 +76,22 @@ export class Game {
   update(dt) {
     if (!this.state.running) { this.input.endFrame(); return; }
     this.state.time += dt;
+
     this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height, this.dungeonCollision);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
+
+    if (this.input.pressed('i')) this.inventoryUI.toggle();
     if (this.input.pressed('e')) this.usePotion();
+    if (!this.inventoryUI.root.classList.contains('hidden')) this.inventoryUI.render();
+
     this.combat.update(dt);
 
     this.state.spawnTimer -= dt;
     const interval = Math.max(0.35, 1.4 - this.state.wave * 0.06);
-    if (!this.state.boss && this.state.spawnTimer <= 0) { this.spawnEnemy(); this.state.spawnTimer = interval; }
+    if (!this.state.boss && this.state.spawnTimer <= 0) {
+      this.spawnEnemy();
+      this.state.spawnTimer = interval;
+    }
 
     const newWave = 1 + Math.floor(this.state.score / 8);
     if (newWave !== this.state.wave) {
@@ -132,9 +143,12 @@ export class Game {
     const terrainName = this.state.playerTerrain?.name ?? 'Desconhecido';
     ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(14, 14, 390, 126);
     this.renderer.text(`HP: ${Math.ceil(player.hp)}/${player.maxHp}`, 28, 38);
-    this.renderer.text(`Nível: ${this.state.level}`, 28, 60); this.renderer.text(`XP: ${this.state.xp}/${this.state.xpToNext}`, 120, 60);
-    this.renderer.text(`Derrotados: ${this.state.score}`, 28, 82); this.renderer.text(`Onda: ${this.state.wave}`, 170, 82);
-    this.renderer.text(`Poções: ${this.inventory.count('smallPotion')} [E]`, 28, 104, 12); this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
+    this.renderer.text(`Nível: ${this.state.level}`, 28, 60);
+    this.renderer.text(`XP: ${this.state.xp}/${this.state.xpToNext}`, 120, 60);
+    this.renderer.text(`Derrotados: ${this.state.score}`, 28, 82);
+    this.renderer.text(`Onda: ${this.state.wave}`, 170, 82);
+    this.renderer.text(`Poções: ${this.inventory.count('smallPotion')} [E]`, 28, 104, 12);
+    this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
 
     if (this.state.bossWarning) {
       this.renderer.text(this.state.bossWarning, this.canvas.width / 2, 48, 22, 'center');
