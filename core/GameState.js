@@ -14,5 +14,6 @@ export class GameState {
     this.player = null;
     this.dungeon = null;
     this.dungeonReady = false;
+    this.playerTerrain = null;
   }
 }
