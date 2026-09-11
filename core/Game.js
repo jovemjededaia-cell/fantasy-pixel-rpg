@@ -14,6 +14,7 @@ import { ProgressionSystem } from '../systems/ProgressionSystem.js';
 import { InventoryUI } from '../ui/InventoryUI.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
 import { SpriteSystem } from '../systems/SpriteSystem.js';
+import { EffectsSystem } from '../systems/EffectsSystem.js';
 
 export class Game {
   constructor(canvas) {
@@ -22,13 +23,14 @@ export class Game {
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas);
     this.spriteSystem = new SpriteSystem();
+    this.effects = new EffectsSystem(this.state);
     this.state.input = this.input;
     this.dungeon = new DungeonSystem(this.state, this.renderer);
     this.dungeonCollision = new DungeonCollisionSystem(this.dungeon);
     this.terrain = new TerrainSystem(this.dungeon);
     this.inventory = new InventorySystem(this.state);
     this.progression = new ProgressionSystem(this.state);
-    this.combat = new CombatSystem(this.state, this.dungeonCollision, this.progression, this.inventory);
+    this.combat = new CombatSystem(this.state, this.dungeonCollision, this.progression, this.inventory, this.effects);
     this.inventoryUI = new InventoryUI(this);
     this.saveSystem = new SaveSystem(this);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
@@ -104,6 +106,8 @@ export class Game {
     if (!this.state.running) { this.input.endFrame(); return; }
     this.state.time += dt;
     this.state.saveNoticeTime = Math.max(0, (this.state.saveNoticeTime ?? 0) - dt);
+    this.effects.update(dt);
+
     this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height, this.dungeonCollision);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
 
@@ -112,6 +116,7 @@ export class Game {
     if (!this.inventoryUI.root.classList.contains('hidden')) this.inventoryUI.render();
 
     this.combat.update(dt);
+
     this.state.spawnTimer -= dt;
     const interval = Math.max(0.35, 1.4 - this.state.wave * 0.06);
     if (!this.state.boss && this.state.spawnTimer <= 0) {
@@ -184,6 +189,8 @@ export class Game {
         ctx.globalAlpha = 1;
       }
     }
+
+    this.effects.draw(ctx);
 
     const terrainName = this.state.playerTerrain?.name ?? 'Desconhecido';
     ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(14, 14, 390, 126);
