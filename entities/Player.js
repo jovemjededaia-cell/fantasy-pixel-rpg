@@ -14,14 +14,8 @@ export class Player {
     const move = input.movement();
     const dx = move.x * this.speed * dt;
     const dy = move.y * this.speed * dt;
-
-    if (collision) {
-      collision.moveCircle(this, dx, dy);
-    } else {
-      this.x += dx;
-      this.y += dy;
-    }
-
+    if (collision) collision.moveCircle(this, dx, dy);
+    else { this.x += dx; this.y += dy; }
     this.x = Math.max(this.radius, Math.min(width - this.radius, this.x));
     this.y = Math.max(this.radius, Math.min(height - this.radius, this.y));
     this.attackTimer = Math.max(0, this.attackTimer - dt);
@@ -37,4 +31,6 @@ export class Player {
     this.invulnerability = 0.35;
     return true;
   }
+
+  heal(amount) { this.hp = Math.min(this.maxHp, this.hp + amount); }
 }
