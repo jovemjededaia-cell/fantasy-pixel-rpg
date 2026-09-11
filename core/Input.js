@@ -2,14 +2,15 @@ export class Input {
   constructor(canvas) {
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, down: false };
+    this.justPressed = new Set();
 
     window.addEventListener('keydown', e => {
       const key = e.key.toLowerCase();
       if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key)) e.preventDefault();
+      if (!this.keys.has(key)) this.justPressed.add(key);
       this.keys.add(key);
     });
     window.addEventListener('keyup', e => this.keys.delete(e.key.toLowerCase()));
-
     canvas.addEventListener('pointermove', e => {
       const r = canvas.getBoundingClientRect();
       this.mouse.x = (e.clientX - r.left) * canvas.width / r.width;
@@ -30,4 +31,6 @@ export class Input {
   }
 
   attackPressed() { return this.keys.has(' ') || this.mouse.down; }
+  pressed(key) { return this.justPressed.has(key.toLowerCase()); }
+  endFrame() { this.justPressed.clear(); }
 }
