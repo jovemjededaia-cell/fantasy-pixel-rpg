@@ -1,4 +1,4 @@
-import { DungeonGenerator } from '../dungeon/DungeonGenerator.js';
+import { RoomCorridorGenerator } from '../dungeon/RoomCorridorGenerator.js';
 import { DUNGEON_TILES } from '../dungeon/TileSet.js';
 
 export class DungeonSystem {
@@ -7,12 +7,25 @@ export class DungeonSystem {
     this.renderer = renderer;
     this.tileSize = 32;
     this.map = null;
+    this.rooms = [];
+    this.start = null;
+    this.exit = null;
   }
 
   generate(width, height) {
-    const result = new DungeonGenerator({ width, height }).generate();
+    const result = new RoomCorridorGenerator({
+      width,
+      height,
+      maxRooms: Math.max(6, Math.min(10, Math.floor(width * height / 70)))
+    }).generate();
+
     this.map = result.map;
+    this.rooms = result.rooms;
+    this.start = result.start;
+    this.exit = result.exit;
     this.state.dungeon = this.map;
+    this.state.dungeonStart = this.start;
+    this.state.dungeonExit = this.exit;
     return result;
   }
 
@@ -44,6 +57,14 @@ export class DungeonSystem {
     };
   }
 
+  getPointWorld(point) {
+    if (!point) return null;
+    return {
+      x: point.x * this.tileSize + this.tileSize / 2,
+      y: point.y * this.tileSize + this.tileSize / 2
+    };
+  }
+
   draw(ctx) {
     if (!this.map) return;
     const size = this.tileSize;
@@ -61,6 +82,25 @@ export class DungeonSystem {
         ctx.fillRect(px + 2, py + 2, size - 4, 2);
       }
     });
+
+    this.drawMarker(ctx, this.start, '#6de58a', 'ENTRADA');
+    this.drawMarker(ctx, this.exit, '#f2d36b', 'SAÍDA');
+  }
+
+  drawMarker(ctx, point, color, label) {
+    if (!point) return;
+    const x = point.x * this.tileSize + this.tileSize / 2;
+    const y = point.y * this.tileSize + this.tileSize / 2;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 9, y - 9, 18, 18);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, y - 13);
+    ctx.restore();
   }
 
   colorFor(kind) {
