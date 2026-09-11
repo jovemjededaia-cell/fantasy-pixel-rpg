@@ -10,10 +10,20 @@ export class Player {
     this.invulnerability = 0;
   }
 
-  update(dt, input, width, height) {
+  update(dt, input, width, height, collision = null) {
     const move = input.movement();
-    this.x = Math.max(this.radius, Math.min(width - this.radius, this.x + move.x * this.speed * dt));
-    this.y = Math.max(this.radius, Math.min(height - this.radius, this.y + move.y * this.speed * dt));
+    const dx = move.x * this.speed * dt;
+    const dy = move.y * this.speed * dt;
+
+    if (collision) {
+      collision.moveCircle(this, dx, dy);
+    } else {
+      this.x += dx;
+      this.y += dy;
+    }
+
+    this.x = Math.max(this.radius, Math.min(width - this.radius, this.x));
+    this.y = Math.max(this.radius, Math.min(height - this.radius, this.y));
     this.attackTimer = Math.max(0, this.attackTimer - dt);
     this.invulnerability = Math.max(0, this.invulnerability - dt);
   }
