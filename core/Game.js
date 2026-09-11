@@ -36,14 +36,12 @@ export class Game {
     this.state.input = this.input;
     this.inventory.reset();
     this.state.running = true;
-
     const columns = Math.floor(this.canvas.width / this.dungeon.tileSize);
     const rows = Math.floor(this.canvas.height / this.dungeon.tileSize);
     this.dungeon.generate(columns, rows);
     this.state.dungeonReady = true;
-
-    const entrance = this.dungeon.getPointWorld(this.dungeon.start);
-    this.state.player = new Player(entrance.x, entrance.y);
+    const spawn = this.dungeon.findWalkableSpawn();
+    this.state.player = new Player(spawn.x, spawn.y);
     this.progression.reset(this.state.player);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
     this.spawnEnemy();
@@ -61,6 +59,7 @@ export class Game {
     const spawn = this.dungeon.findWalkableSpawn(this.state.player);
     const id = this.state.wave >= 10 ? 'ancientCore' : 'dungeonGuardian';
     this.state.boss = new Boss(spawn.x, spawn.y, id, this.state.wave);
+    this.state.bossRewardClaimed = false;
     this.state.bossWarning = `${this.state.boss.name} apareceu!`;
   }
 
@@ -81,10 +80,7 @@ export class Game {
 
     this.state.spawnTimer -= dt;
     const interval = Math.max(0.35, 1.4 - this.state.wave * 0.06);
-    if (!this.state.boss && this.state.spawnTimer <= 0) {
-      this.spawnEnemy();
-      this.state.spawnTimer = interval;
-    }
+    if (!this.state.boss && this.state.spawnTimer <= 0) { this.spawnEnemy(); this.state.spawnTimer = interval; }
 
     const newWave = 1 + Math.floor(this.state.score / 8);
     if (newWave !== this.state.wave) {
@@ -93,10 +89,7 @@ export class Game {
     }
 
     if (this.state.boss?.hp <= 0) this.state.boss = null;
-    if (this.state.player.hp <= 0) {
-      this.state.running = false;
-      this.state.gameOver = true;
-    }
+    if (this.state.player.hp <= 0) { this.state.running = false; this.state.gameOver = true; }
     this.input.endFrame();
   }
 
@@ -108,67 +101,56 @@ export class Game {
     this.dungeon.draw(ctx);
 
     for (const projectile of this.state.projectiles) {
-      ctx.beginPath();
-      ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
-      ctx.fillStyle = '#f7d774';
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
+      ctx.fillStyle = '#f7d774'; ctx.fill();
     }
 
     for (const enemy of this.state.enemies) {
-      ctx.beginPath();
-      ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
-      ctx.fillStyle = enemy.hitFlash > 0 ? '#fff' : enemy.color;
-      ctx.fill();
-      ctx.fillStyle = '#30151a';
-      ctx.fillRect(enemy.x - 15, enemy.y - 22, 30, 4);
-      ctx.fillStyle = '#72d66d';
-      ctx.fillRect(enemy.x - 15, enemy.y - 22, 30 * (enemy.hp / enemy.maxHp), 4);
+      ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
+      ctx.fillStyle = enemy.hitFlash > 0 ? '#fff' : enemy.color; ctx.fill();
+      ctx.fillStyle = '#30151a'; ctx.fillRect(enemy.x - 15, enemy.y - 22, 30, 4);
+      ctx.fillStyle = '#72d66d'; ctx.fillRect(enemy.x - 15, enemy.y - 22, 30 * (enemy.hp / enemy.maxHp), 4);
     }
 
     if (this.state.boss) {
       const boss = this.state.boss;
-      ctx.beginPath();
-      ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI * 2);
-      ctx.fillStyle = boss.hitFlash > 0 ? '#fff' : boss.color;
+      ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.radius + (boss.phase === 3 ? 3 : 0), 0, Math.PI * 2);
+      ctx.fillStyle = boss.telegraph > 0 ? '#fff3bf' : boss.hitFlash > 0 ? '#fff' : boss.color;
       ctx.fill();
-      ctx.fillStyle = '#30151a';
-      ctx.fillRect(boss.x - 42, boss.y - 42, 84, 6);
-      ctx.fillStyle = '#e85b67';
-      ctx.fillRect(boss.x - 42, boss.y - 42, 84 * (boss.hp / boss.maxHp), 6);
+      ctx.fillStyle = '#30151a'; ctx.fillRect(boss.x - 52, boss.y - 48, 104, 7);
+      ctx.fillStyle = '#e85b67'; ctx.fillRect(boss.x - 52, boss.y - 48, 104 * (boss.hp / boss.maxHp), 7);
+      this.renderer.text(`${boss.name} — ${boss.phaseLabel}`, boss.x, boss.y - 58, 12, 'center');
     }
 
     const player = this.state.player;
     if (player) {
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-      ctx.fillStyle = player.invulnerability > 0 ? '#fff' : '#5da9ff';
-      ctx.fill();
-      ctx.strokeStyle = '#dcecff';
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+      ctx.fillStyle = player.invulnerability > 0 ? '#fff' : '#5da9ff'; ctx.fill();
+      ctx.strokeStyle = '#dcecff'; ctx.stroke();
     }
 
     const terrainName = this.state.playerTerrain?.name ?? 'Desconhecido';
-    ctx.fillStyle = 'rgba(0,0,0,.62)';
-    ctx.fillRect(14, 14, 390, 126);
+    ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(14, 14, 390, 126);
     this.renderer.text(`HP: ${Math.ceil(player.hp)}/${player.maxHp}`, 28, 38);
-    this.renderer.text(`Nível: ${this.state.level}`, 28, 60);
-    this.renderer.text(`XP: ${this.state.xp}/${this.state.xpToNext}`, 120, 60);
-    this.renderer.text(`Derrotados: ${this.state.score}`, 28, 82);
-    this.renderer.text(`Onda: ${this.state.wave}`, 170, 82);
-    this.renderer.text(`Poções: ${this.inventory.count('smallPotion')} [E]`, 28, 104, 12);
-    this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
+    this.renderer.text(`Nível: ${this.state.level}`, 28, 60); this.renderer.text(`XP: ${this.state.xp}/${this.state.xpToNext}`, 120, 60);
+    this.renderer.text(`Derrotados: ${this.state.score}`, 28, 82); this.renderer.text(`Onda: ${this.state.wave}`, 170, 82);
+    this.renderer.text(`Poções: ${this.inventory.count('smallPotion')} [E]`, 28, 104, 12); this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
 
     if (this.state.bossWarning) {
       this.renderer.text(this.state.bossWarning, this.canvas.width / 2, 48, 22, 'center');
-      if (this.state.boss) this.state.bossWarning = '';
+      if (this.state.boss?.phaseChanged) {
+        this.state.bossWarning = `${this.state.boss.name} entrou na ${this.state.boss.phaseLabel}!`;
+        this.state.boss.phaseChanged = false;
+      } else if (this.state.boss) {
+        this.state.bossWarning = '';
+      }
     }
 
     if (this.state.gameOver) {
-      ctx.fillStyle = 'rgba(0,0,0,.72)';
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-      this.renderer.text('GAME OVER', this.canvas.width / 2, 230, 42, 'center');
-      this.renderer.text(`Nível ${this.state.level} • ${this.state.score} derrotados`, this.canvas.width / 2, 270, 18, 'center');
-      this.renderer.text('Pressione R para reiniciar', this.canvas.width / 2, 310, 18, 'center');
+      ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+      this.renderer.text('GAME OVER', this.canvas.width/2, 230, 42, 'center');
+      this.renderer.text(`Nível ${this.state.level} • ${this.state.score} derrotados`, this.canvas.width/2, 270, 18, 'center');
+      this.renderer.text('Pressione R para reiniciar', this.canvas.width/2, 310, 18, 'center');
     }
   }
 }
