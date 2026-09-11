@@ -14,6 +14,8 @@ export class GameState {
     this.player = null;
     this.dungeon = null;
     this.dungeonReady = false;
+    this.dungeonStart = null;
+    this.dungeonExit = null;
     this.playerTerrain = null;
     this.inventory = [];
     this.inventoryCapacity = 12;
