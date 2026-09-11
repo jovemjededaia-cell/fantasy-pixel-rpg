@@ -13,6 +13,7 @@ import { InventorySystem } from '../systems/InventorySystem.js';
 import { ProgressionSystem } from '../systems/ProgressionSystem.js';
 import { InventoryUI } from '../ui/InventoryUI.js';
 import { SaveSystem } from '../systems/SaveSystem.js';
+import { SpriteSystem } from '../systems/SpriteSystem.js';
 
 export class Game {
   constructor(canvas) {
@@ -20,6 +21,7 @@ export class Game {
     this.state = new GameState();
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas);
+    this.spriteSystem = new SpriteSystem();
     this.state.input = this.input;
     this.dungeon = new DungeonSystem(this.state, this.renderer);
     this.dungeonCollision = new DungeonCollisionSystem(this.dungeon);
@@ -102,7 +104,6 @@ export class Game {
     if (!this.state.running) { this.input.endFrame(); return; }
     this.state.time += dt;
     this.state.saveNoticeTime = Math.max(0, (this.state.saveNoticeTime ?? 0) - dt);
-
     this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height, this.dungeonCollision);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
 
@@ -111,7 +112,6 @@ export class Game {
     if (!this.inventoryUI.root.classList.contains('hidden')) this.inventoryUI.render();
 
     this.combat.update(dt);
-
     this.state.spawnTimer -= dt;
     const interval = Math.max(0.35, 1.4 - this.state.wave * 0.06);
     if (!this.state.boss && this.state.spawnTimer <= 0) {
@@ -126,8 +126,24 @@ export class Game {
     }
 
     if (this.state.boss?.hp <= 0) this.state.boss = null;
-    if (this.state.player.hp <= 0) { this.state.running = false; this.state.gameOver = true; }
+    if (this.state.player.hp <= 0) {
+      this.state.running = false;
+      this.state.gameOver = true;
+    }
     this.input.endFrame();
+  }
+
+  drawCharacter(ctx, entity, spriteId, size, frame = 0, fallbackColor = '#5da9ff') {
+    const drawn = this.spriteSystem.draw(ctx, spriteId, entity.x, entity.y, size, frame, 4, 4);
+    if (!drawn) {
+      ctx.beginPath();
+      ctx.arc(entity.x, entity.y, entity.radius, 0, Math.PI * 2);
+      ctx.fillStyle = fallbackColor;
+      ctx.fill();
+      ctx.strokeStyle = '#dcecff';
+      ctx.stroke();
+    }
+    return drawn;
   }
 
   render() {
@@ -143,10 +159,9 @@ export class Game {
     }
 
     for (const enemy of this.state.enemies) {
-      ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
-      ctx.fillStyle = enemy.hitFlash > 0 ? '#fff' : enemy.color; ctx.fill();
-      ctx.fillStyle = '#30151a'; ctx.fillRect(enemy.x - 15, enemy.y - 22, 30, 4);
-      ctx.fillStyle = '#72d66d'; ctx.fillRect(enemy.x - 15, enemy.y - 22, 30 * (enemy.hp / enemy.maxHp), 4);
+      this.drawCharacter(ctx, enemy, enemy.spriteId, enemy.radius * 2.7, enemy.animationFrame(), enemy.color);
+      ctx.fillStyle = '#30151a'; ctx.fillRect(enemy.x - 15, enemy.y - 25, 30, 4);
+      ctx.fillStyle = '#72d66d'; ctx.fillRect(enemy.x - 15, enemy.y - 25, 30 * (enemy.hp / enemy.maxHp), 4);
     }
 
     if (this.state.boss) {
@@ -161,9 +176,13 @@ export class Game {
 
     const player = this.state.player;
     if (player) {
-      ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-      ctx.fillStyle = player.invulnerability > 0 ? '#fff' : '#5da9ff'; ctx.fill();
-      ctx.strokeStyle = '#dcecff'; ctx.stroke();
+      this.drawCharacter(ctx, player, player.spriteId, 48, player.animationFrame(), '#5da9ff');
+      if (player.invulnerability > 0) {
+        ctx.globalAlpha = 0.65;
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.radius + 3, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fff'; ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
 
     const terrainName = this.state.playerTerrain?.name ?? 'Desconhecido';
@@ -177,18 +196,14 @@ export class Game {
     this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
     this.renderer.text('F6 salvar • F10 carregar', this.canvas.width - 24, this.canvas.height - 18, 12, 'right');
 
-    if (this.state.saveNoticeTime > 0) {
-      this.renderer.text(this.state.saveNotice, this.canvas.width / 2, 76, 16, 'center');
-    }
+    if (this.state.saveNoticeTime > 0) this.renderer.text(this.state.saveNotice, this.canvas.width / 2, 76, 16, 'center');
 
     if (this.state.bossWarning) {
       this.renderer.text(this.state.bossWarning, this.canvas.width / 2, 48, 22, 'center');
       if (this.state.boss?.phaseChanged) {
         this.state.bossWarning = `${this.state.boss.name} entrou na ${this.state.boss.phaseLabel}!`;
         this.state.boss.phaseChanged = false;
-      } else if (this.state.boss) {
-        this.state.bossWarning = '';
-      }
+      } else if (this.state.boss) this.state.bossWarning = '';
     }
 
     if (this.state.gameOver) {
