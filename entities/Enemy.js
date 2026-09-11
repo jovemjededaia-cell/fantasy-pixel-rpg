@@ -9,16 +9,26 @@ export class Enemy {
     this.hitFlash = 0;
   }
 
-  update(dt, player) {
-    const dx = player.x - this.x, dy = player.y - this.y;
+  update(dt, player, collision = null) {
+    const dx = player.x - this.x;
+    const dy = player.y - this.y;
     const d = Math.hypot(dx, dy) || 1;
+
     if (d > this.radius + player.radius + 4) {
-      this.x += dx / d * this.speed * dt;
-      this.y += dy / d * this.speed * dt;
+      const moveX = dx / d * this.speed * dt;
+      const moveY = dy / d * this.speed * dt;
+
+      if (collision) {
+        collision.moveCircle(this, moveX, moveY);
+      } else {
+        this.x += moveX;
+        this.y += moveY;
+      }
     } else if (this.attackTimer <= 0) {
       player.takeDamage(this.damage);
       this.attackTimer = this.attackCooldown;
     }
+
     this.attackTimer = Math.max(0, this.attackTimer - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
   }
