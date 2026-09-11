@@ -5,6 +5,7 @@ import { GameLoop } from './GameLoop.js';
 import { Player } from '../entities/Player.js';
 import { Enemy } from '../entities/Enemy.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
+import { DungeonSystem } from '../systems/DungeonSystem.js';
 
 export class Game {
   constructor(canvas) {
@@ -13,6 +14,7 @@ export class Game {
     this.input = new Input(canvas);
     this.renderer = new Renderer(canvas);
     this.state.input = this.input;
+    this.dungeon = new DungeonSystem(this.state, this.renderer);
     this.combat = new CombatSystem(this.state);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
 
@@ -27,6 +29,12 @@ export class Game {
     this.state.reset();
     this.state.input = this.input;
     this.state.running = true;
+
+    const columns = Math.floor(this.canvas.width / this.dungeon.tileSize);
+    const rows = Math.floor(this.canvas.height / this.dungeon.tileSize);
+    this.dungeon.generate(columns, rows);
+    this.state.dungeonReady = true;
+
     this.state.player = new Player(this.canvas.width / 2, this.canvas.height / 2);
     this.spawnEnemy();
   }
@@ -67,7 +75,7 @@ export class Game {
     this.renderer.clear();
     ctx.fillStyle = '#0b0e13';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    this.renderer.grid();
+    this.dungeon.draw(ctx);
 
     for (const projectile of this.state.projectiles) {
       ctx.beginPath(); ctx.arc(projectile.x, projectile.y, projectile.radius, 0, Math.PI * 2);
@@ -88,10 +96,11 @@ export class Game {
       ctx.strokeStyle = '#dcecff'; ctx.stroke();
     }
 
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(14, 14, 260, 72);
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(14, 14, 310, 72);
     this.renderer.text(`HP: ${Math.ceil(this.state.player.hp)}/${this.state.player.maxHp}`, 28, 38);
     this.renderer.text(`Derrotados: ${this.state.score}`, 28, 60);
     this.renderer.text(`Onda: ${this.state.wave}`, 160, 60);
+    this.renderer.text('WFC Dungeon', 28, 82, 12);
 
     if (this.state.gameOver) {
       ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
