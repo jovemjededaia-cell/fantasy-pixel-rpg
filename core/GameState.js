@@ -15,5 +15,13 @@ export class GameState {
     this.dungeon = null;
     this.dungeonReady = false;
     this.playerTerrain = null;
+    this.inventory = [];
+    this.inventoryCapacity = 12;
+    this.level = 1;
+    this.xp = 0;
+    this.xpToNext = 60;
+    this.boss = null;
+    this.bossDefeated = false;
+    this.bossWarning = '';
   }
 }
