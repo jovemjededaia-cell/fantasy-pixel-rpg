@@ -4,10 +4,13 @@ import { Renderer } from './Renderer.js';
 import { GameLoop } from './GameLoop.js';
 import { Player } from '../entities/Player.js';
 import { Enemy } from '../entities/Enemy.js';
+import { Boss } from '../entities/Boss.js';
 import { CombatSystem } from '../systems/CombatSystem.js';
 import { DungeonSystem } from '../systems/DungeonSystem.js';
 import { DungeonCollisionSystem } from '../systems/DungeonCollisionSystem.js';
 import { TerrainSystem } from '../systems/TerrainSystem.js';
+import { InventorySystem } from '../systems/InventorySystem.js';
+import { ProgressionSystem } from '../systems/ProgressionSystem.js';
 
 export class Game {
   constructor(canvas) {
@@ -19,7 +22,9 @@ export class Game {
     this.dungeon = new DungeonSystem(this.state, this.renderer);
     this.dungeonCollision = new DungeonCollisionSystem(this.dungeon);
     this.terrain = new TerrainSystem(this.dungeon);
-    this.combat = new CombatSystem(this.state, this.dungeonCollision);
+    this.inventory = new InventorySystem(this.state);
+    this.progression = new ProgressionSystem(this.state);
+    this.combat = new CombatSystem(this.state, this.dungeonCollision, this.progression, this.inventory);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
 
     window.addEventListener('keydown', e => {
@@ -32,43 +37,70 @@ export class Game {
   reset() {
     this.state.reset();
     this.state.input = this.input;
+    this.inventory.reset();
     this.state.running = true;
-
     const columns = Math.floor(this.canvas.width / this.dungeon.tileSize);
     const rows = Math.floor(this.canvas.height / this.dungeon.tileSize);
     this.dungeon.generate(columns, rows);
     this.state.dungeonReady = true;
-
     const spawn = this.dungeon.findWalkableSpawn();
     this.state.player = new Player(spawn.x, spawn.y);
+    this.progression.reset(this.state.player);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
     this.spawnEnemy();
   }
 
   spawnEnemy() {
     const spawn = this.dungeon.findWalkableSpawn(this.state.player);
-    this.state.enemies.push(new Enemy(spawn.x, spawn.y, this.state.wave));
+    const roll = Math.random();
+    const type = roll < 0.55 ? 'slime' : roll < 0.85 ? 'bat' : 'guardian';
+    this.state.enemies.push(new Enemy(spawn.x, spawn.y, this.state.wave, type));
+  }
+
+  spawnBoss() {
+    if (this.state.boss || this.state.bossDefeated) return;
+    const spawn = this.dungeon.findWalkableSpawn(this.state.player);
+    const id = this.state.wave >= 10 ? 'ancientCore' : 'dungeonGuardian';
+    this.state.boss = new Boss(spawn.x, spawn.y, id, this.state.wave);
+    this.state.bossWarning = `${this.state.boss.name} apareceu!`;
+  }
+
+  usePotion() {
+    const stack = this.state.inventory.find(item => item.id === 'smallPotion');
+    if (!stack || !this.state.player) return;
+    if (this.state.player.hp >= this.state.player.maxHp) return;
+    this.state.player.heal(25);
+    this.inventory.remove('smallPotion');
   }
 
   update(dt) {
-    if (!this.state.running) return;
+    if (!this.state.running) { this.input.endFrame(); return; }
     this.state.time += dt;
     this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height, this.dungeonCollision);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
+
+    if (this.input.pressed('e')) this.usePotion();
     this.combat.update(dt);
 
     this.state.spawnTimer -= dt;
     const interval = Math.max(0.35, 1.4 - this.state.wave * 0.06);
-    if (this.state.spawnTimer <= 0) {
+    if (!this.state.boss && this.state.spawnTimer <= 0) {
       this.spawnEnemy();
       this.state.spawnTimer = interval;
     }
 
-    this.state.wave = 1 + Math.floor(this.state.score / 8);
+    const newWave = 1 + Math.floor(this.state.score / 8);
+    if (newWave !== this.state.wave) {
+      this.state.wave = newWave;
+      if (newWave % 5 === 0) this.spawnBoss();
+    }
+
+    if (this.state.boss?.hp <= 0) this.state.boss = null;
     if (this.state.player.hp <= 0) {
       this.state.running = false;
       this.state.gameOver = true;
     }
+    this.input.endFrame();
   }
 
   render() {
@@ -85,9 +117,17 @@ export class Game {
 
     for (const enemy of this.state.enemies) {
       ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
-      ctx.fillStyle = enemy.hitFlash > 0 ? '#fff' : '#d94b5b'; ctx.fill();
+      ctx.fillStyle = enemy.hitFlash > 0 ? '#fff' : enemy.color; ctx.fill();
       ctx.fillStyle = '#30151a'; ctx.fillRect(enemy.x - 15, enemy.y - 22, 30, 4);
       ctx.fillStyle = '#72d66d'; ctx.fillRect(enemy.x - 15, enemy.y - 22, 30 * (enemy.hp / enemy.maxHp), 4);
+    }
+
+    if (this.state.boss) {
+      const boss = this.state.boss;
+      ctx.beginPath(); ctx.arc(boss.x, boss.y, boss.radius, 0, Math.PI * 2);
+      ctx.fillStyle = boss.hitFlash > 0 ? '#fff' : boss.color; ctx.fill();
+      ctx.fillStyle = '#30151a'; ctx.fillRect(boss.x - 42, boss.y - 42, 84, 6);
+      ctx.fillStyle = '#e85b67'; ctx.fillRect(boss.x - 42, boss.y - 42, 84 * (boss.hp / boss.maxHp), 6);
     }
 
     const player = this.state.player;
@@ -98,16 +138,24 @@ export class Game {
     }
 
     const terrainName = this.state.playerTerrain?.name ?? 'Desconhecido';
-    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(14, 14, 330, 88);
-    this.renderer.text(`HP: ${Math.ceil(this.state.player.hp)}/${this.state.player.maxHp}`, 28, 38);
-    this.renderer.text(`Derrotados: ${this.state.score}`, 28, 60);
-    this.renderer.text(`Onda: ${this.state.wave}`, 160, 60);
-    this.renderer.text(`Terreno: ${terrainName}`, 28, 82, 12);
+    ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(14, 14, 390, 126);
+    this.renderer.text(`HP: ${Math.ceil(player.hp)}/${player.maxHp}`, 28, 38);
+    this.renderer.text(`Nível: ${this.state.level}`, 28, 60);
+    this.renderer.text(`XP: ${this.state.xp}/${this.state.xpToNext}`, 120, 60);
+    this.renderer.text(`Derrotados: ${this.state.score}`, 28, 82);
+    this.renderer.text(`Onda: ${this.state.wave}`, 170, 82);
+    this.renderer.text(`Poções: ${this.inventory.count('smallPotion')}  [E]`, 28, 104, 12);
+    this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
+
+    if (this.state.bossWarning) {
+      this.renderer.text(this.state.bossWarning, this.canvas.width / 2, 48, 22, 'center');
+      if (this.state.boss) this.state.bossWarning = '';
+    }
 
     if (this.state.gameOver) {
       ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
       this.renderer.text('GAME OVER', this.canvas.width/2, 230, 42, 'center');
-      this.renderer.text(`Inimigos derrotados: ${this.state.score}`, this.canvas.width/2, 270, 18, 'center');
+      this.renderer.text(`Nível ${this.state.level} • ${this.state.score} derrotados`, this.canvas.width/2, 270, 18, 'center');
       this.renderer.text('Pressione R para reiniciar', this.canvas.width/2, 310, 18, 'center');
     }
   }
