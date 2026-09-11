@@ -1,29 +1,30 @@
+import { COMBAT_CONFIG } from '../data/combat.js';
+
 export class Player {
   constructor(x, y) {
-    this.x = x; this.y = y; this.radius = 16;
+    this.x = x;
+    this.y = y;
+    this.radius = 16;
     this.speed = 220;
-    this.maxHp = 100; this.hp = 100;
+    this.maxHp = 100;
+    this.hp = 100;
     this.damage = 12;
-    this.attackRange = 420;
+    this.attackRange = COMBAT_CONFIG.player.range;
     this.attackCooldown = 0.28;
     this.attackTimer = 0;
     this.invulnerability = 0;
     this.spriteId = 'knight';
-    this.facing = 0;
+    this.facing = 1;
+    this.moving = false;
     this.animTime = 0;
-    this.isMoving = false;
   }
 
   update(dt, input, width, height, collision = null) {
     const move = input.movement();
-    this.isMoving = Math.abs(move.x) + Math.abs(move.y) > 0;
-    if (this.isMoving) {
-      this.animTime += dt;
-      if (Math.abs(move.x) > Math.abs(move.y)) this.facing = move.x < 0 ? 1 : 3;
-      else this.facing = move.y < 0 ? 2 : 0;
-    } else {
-      this.animTime = 0;
-    }
+    const moving = move.x !== 0 || move.y !== 0;
+    this.moving = moving;
+    if (move.x !== 0) this.facing = move.x < 0 ? -1 : 1;
+    if (moving) this.animTime += dt;
 
     const dx = move.x * this.speed * dt;
     const dy = move.y * this.speed * dt;
@@ -36,9 +37,8 @@ export class Player {
     this.invulnerability = Math.max(0, this.invulnerability - dt);
   }
 
-  animationFrame(fps = 8, framesPerDirection = 4) {
-    const local = this.isMoving ? Math.floor(this.animTime * fps) % framesPerDirection : 0;
-    return this.facing * framesPerDirection + local;
+  animationFrame() {
+    return this.moving ? Math.floor(this.animTime * 8) % 4 : 0;
   }
 
   canAttack() { return this.attackTimer <= 0; }
@@ -47,9 +47,11 @@ export class Player {
   takeDamage(amount) {
     if (this.invulnerability > 0) return false;
     this.hp = Math.max(0, this.hp - amount);
-    this.invulnerability = 0.35;
+    this.invulnerability = COMBAT_CONFIG.player.invulnerabilityAfterHit;
     return true;
   }
 
-  heal(amount) { this.hp = Math.min(this.maxHp, this.hp + amount); }
+  heal(amount) {
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+  }
 }
