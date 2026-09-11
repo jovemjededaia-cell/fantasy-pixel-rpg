@@ -16,6 +16,34 @@ export class DungeonSystem {
     return result;
   }
 
+  isWalkable(x, y) {
+    if (!this.map) return false;
+    const tile = DUNGEON_TILES[this.map.get(x, y)];
+    return !!tile && tile.kind !== 'wall' && tile.kind !== 'lava';
+  }
+
+  findWalkableSpawn(avoidEntity = null) {
+    if (!this.map) return { x: this.tileSize / 2, y: this.tileSize / 2 };
+
+    const candidates = [];
+    this.map.forEach((tileIndex, x, y) => {
+      if (!this.isWalkable(x, y)) return;
+      const px = x * this.tileSize + this.tileSize / 2;
+      const py = y * this.tileSize + this.tileSize / 2;
+      if (avoidEntity) {
+        const dx = px - avoidEntity.x;
+        const dy = py - avoidEntity.y;
+        if (dx * dx + dy * dy < 160 * 160) return;
+      }
+      candidates.push({ x: px, y: py });
+    });
+
+    return candidates[Math.floor(Math.random() * candidates.length)] || {
+      x: this.tileSize / 2,
+      y: this.tileSize / 2
+    };
+  }
+
   draw(ctx) {
     if (!this.map) return;
     const size = this.tileSize;
