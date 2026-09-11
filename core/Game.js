@@ -12,6 +12,7 @@ import { TerrainSystem } from '../systems/TerrainSystem.js';
 import { InventorySystem } from '../systems/InventorySystem.js';
 import { ProgressionSystem } from '../systems/ProgressionSystem.js';
 import { InventoryUI } from '../ui/InventoryUI.js';
+import { SaveSystem } from '../systems/SaveSystem.js';
 
 export class Game {
   constructor(canvas) {
@@ -27,8 +28,32 @@ export class Game {
     this.progression = new ProgressionSystem(this.state);
     this.combat = new CombatSystem(this.state, this.dungeonCollision, this.progression, this.inventory);
     this.inventoryUI = new InventoryUI(this);
+    this.saveSystem = new SaveSystem(this);
     this.loop = new GameLoop(dt => this.update(dt), () => this.render());
-    window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r' && this.state.gameOver) this.reset(); });
+
+    window.addEventListener('keydown', e => {
+      const key = e.key.toLowerCase();
+      if (key === 'r' && this.state.gameOver) {
+        this.reset();
+        return;
+      }
+      if (key === 'f6') {
+        e.preventDefault();
+        this.saveSystem.save();
+        this.state.saveNotice = 'Jogo salvo!';
+        this.state.saveNoticeTime = 1.5;
+      }
+      if (key === 'f10') {
+        e.preventDefault();
+        if (this.saveSystem.load()) {
+          this.state.saveNotice = 'Jogo carregado!';
+          this.state.saveNoticeTime = 1.5;
+        } else {
+          this.state.saveNotice = 'Nenhum save encontrado.';
+          this.state.saveNoticeTime = 1.5;
+        }
+      }
+    });
   }
 
   start() { this.reset(); this.loop.start(); }
@@ -76,6 +101,7 @@ export class Game {
   update(dt) {
     if (!this.state.running) { this.input.endFrame(); return; }
     this.state.time += dt;
+    this.state.saveNoticeTime = Math.max(0, (this.state.saveNoticeTime ?? 0) - dt);
 
     this.state.player.update(dt, this.input, this.canvas.width, this.canvas.height, this.dungeonCollision);
     this.state.playerTerrain = this.terrain.detectEntity(this.state.player);
@@ -149,6 +175,11 @@ export class Game {
     this.renderer.text(`Onda: ${this.state.wave}`, 170, 82);
     this.renderer.text(`Poções: ${this.inventory.count('smallPotion')} [E]`, 28, 104, 12);
     this.renderer.text(`Terreno: ${terrainName}`, 28, 124, 12);
+    this.renderer.text('F6 salvar • F10 carregar', this.canvas.width - 24, this.canvas.height - 18, 12, 'right');
+
+    if (this.state.saveNoticeTime > 0) {
+      this.renderer.text(this.state.saveNotice, this.canvas.width / 2, 76, 16, 'center');
+    }
 
     if (this.state.bossWarning) {
       this.renderer.text(this.state.bossWarning, this.canvas.width / 2, 48, 22, 'center');
